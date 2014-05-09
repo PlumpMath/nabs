@@ -28,8 +28,13 @@
       (user-choice what alternatives)
       (pick value alternatives))))
 
-(define (pick-unique what alternatives)
-  (cond ((null? alternatives) (error "Couldn't find a suitable version of " what "."))
+(define (pick-unique what alternatives predicates)
+  (cond ((null? alternatives)
+         (pick-unique ((user-pick what
+                                  (filter predicates
+                                          (list (readline (concat "Couldn't find a suitable version of "
+                                                                  what ".\n Please input the path to use: "))))
+                                  predicates))))
         ((null? (cdr alternatives)) (car alternatives))
         (#t (user-choice what alternatives))))
 

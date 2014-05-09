@@ -16,7 +16,7 @@
 
 (define (checks . ARGS)
   (let ((expr (cons* 'and (expand-checks ARGS))))
-    (print expr "\n")
+    ;(print expr "\n")
     (primitive-eval (list 'lambda '(query) expr))))
 
 
