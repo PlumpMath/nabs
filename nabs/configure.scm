@@ -11,7 +11,9 @@
                :re-export (find-file-by-path-suffix)
                :re-export (find-file-by-exact-name)
                :export (declare
+                        verifies
                         add-search-path
+                        ~add-search-path
                         configure-include
                         configure-frontend
                         write-frontend
@@ -26,7 +28,7 @@
 (define ~search-path vlist-null)
 (define-public (dump-search-path) (vhash-fold-right (lambda (k v r) (cons (list k v) r)) '() ~search-path))
 
-(define (add-search-path tag . path)
+(define (~add-search-path tag . path)
   (let ((exists? (vhash-assoc tag ~search-path)))
     (set! ~search-path
       (if exists?
@@ -35,6 +37,14 @@
                               (vhash-cons k (append v path) r))) vlist-null ~search-path)
         (vhash-cons tag path ~search-path)))))
 
+(define-syntax add-search-path
+  (syntax-rules ()
+    ((_ key path ...)
+     (~add-search-path
+       (if (string? (quote key)) (string->symbol (quote key)) (quote key))
+       (if (symbol? (quote path)) (symbol->string (quote path)) (quote path)) ...))))
+
+
 (define (get-search-path tag)
   (let ((exists? (vhash-assoc tag ~search-path)))
     (if exists?
@@ -42,16 +52,47 @@
       (begin (print (dump-search-path) "\n")
       (error (concat "Search path for '" (symbol->string tag) " was not defined!"))))))
 
-(define (declare tag name make-var-name find-mode-tag find-target predicates)
+;(define (find-candidates search-path find-mode-tag find-target predicates . other)
+;  (let ((candidates (filter predicates (find-file search-path find-mode-tag find-target))))
+;    (if (null? other)
+;      candidates
+;      (append candidates (find-candidates search-path . other)))))
+
+(define (find-candidates search-path find-mode-tag find-target predicates . other)
+  (filter predicates (find-file search-path find-mode-tag find-target)))
+
+(define-syntax verifies
+  (syntax-rules ()
+    ;((verifies (pred-name . args) ...) (checks (list (quote pred-name) . args) ...))))
+    ((verifies (pred-name . args) ...) (lambda (f) (and (pred-name f . args) ...)))))
+
+(define-syntax format-find-candidates
+  (syntax-rules ()
+    ((format-find-candidates search-path find-mode-tag find-target predicates)
+     (pk (find-candidates search-path (quote find-mode-tag) (symbol->string (quote find-target)) predicates)))))
+
+(define-syntax format-find-multiple-candidates-impl
+  (syntax-rules ()
+    ((_ sp fmt ft p) (pk (format-find-candidates sp fmt ft p)))
+    ((_ sp fmt ft p . rest)
+     (pk (append (format-find-candidates sp fmt ft p) (format-find-multiple-candidates-impl sp . rest))))))
+
+(define-syntax format-find-multiple-candidates
+  (syntax-rules ()
+    ((_ . whatever) (lambda () (format-find-multiple-candidates-impl . whatever)))))
+
+(define (declare-impl tag name make-var-name candidates)
   (set! configurables
         (append configurables
                 (list (list make-var-name
-                            (lambda () (pick-unique name
-                                                    (filter predicates
-                                                            (find-file (get-search-path tag)
-                                                                       find-mode-tag
-                                                                       find-target))
-                                                    predicates)))))))
+                            (lambda () (pick-unique name (candidates))))))))
+
+(define-syntax declare
+  (syntax-rules ()
+    ((declare t n mvn . rest)
+     (declare-impl (quote t) n (symbol->string (quote mvn))
+                   (format-find-multiple-candidates (get-search-path (quote t)) . rest)))))
+
 
 ;; RENDER CONFIGURATION
 
@@ -90,13 +131,13 @@ include .configuration
 "))))
 
 (define (write-frontend filename vpath makefiles)
-  (if (false-if-exception
+;  (if (false-if-exception
         (let ((f (open-output-file filename)))
           (display (eval-configurables) f)
           ;(print "vpath " vpath " vpath " vpath "\n")
           (display (concat "vpath % " vpath "\n") f)
           (display (string-join (map (lambda (m) (concat "include " (symbol->string m))) makefiles) "\n" 'infix) f)
           (close f)))
-    "true"
-    "false"))
+;    "true"
+;    "false"))
 

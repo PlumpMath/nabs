@@ -2,23 +2,22 @@
                :use-module (ice-9 match)
                :use-module (nabs tools)
                :use-module (nabs invoke)
-               :export (checks
-                        compiler-version>=?
+               :export (compiler-version>=?
                         )
                )
 
-(define (expand-checks ARGS)
-  (if (null? ARGS)
-    '()
-    (let ((ARG (car ARGS)))
-      (cons (match ARG ((op args ...) (cons* op 'query args)))
-            (expand-checks (cdr ARGS))))))
-
-(define (checks . ARGS)
-  (let ((expr (cons* 'and (expand-checks ARGS))))
-    ;(print expr "\n")
-    (primitive-eval (list 'lambda '(query) expr))))
-
+;(define (expand-checks ARGS)
+;  (if (null? ARGS)
+;    '()
+;    (let ((ARG (car ARGS)))
+;      (cons (match ARG ((op args ...) (cons* op 'query args)))
+;            (expand-checks (cdr ARGS))))))
+;
+;(define (checks . ARGS)
+;  (let ((expr (cons* 'and (expand-checks ARGS))))
+;    ;(print expr "\n")
+;    (primitive-eval (list 'lambda '(query) expr))))
+;
 
 
 (define (split-version-string version) (map string->number (string-split version #\.)))
