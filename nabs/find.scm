@@ -22,8 +22,8 @@
   (define (down name stat result) result)
   ;; Ignore unreadable files/directories but warn the user.
   (define (error name stat errno result)
-    (format (current-error-port) "warning: ~a: ~a~%"
-            name (strerror errno))
+    ;(format (current-error-port) "warning: ~a: ~a~%"
+    ;        name (strerror errno))
     result)
 
   (cond ((string? path) (file-system-fold enter? leaf down up skip error init path))
@@ -38,10 +38,16 @@
              '()))
 
 (define (find-file-by-path-suffix path suffix)
-  (find-file-impl path
-             (lambda (name statinfo) (if (string-suffix? suffix name) name #f))
-             (lambda (name statinfo) #t)
-             '()))
+  (let ((candidates
+          (find-file-impl path
+                          (lambda (name statinfo)
+                            (if (string-suffix? suffix name) name #f))
+                          (lambda (name statinfo)
+                            #t)
+                          '())))
+    (if (string-suffix? suffix path)
+      (cons path candidates)
+      candidates)))
 
 (define (find-file-by-exact-name path target-name)
   (find-file-impl path

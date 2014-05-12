@@ -6,7 +6,7 @@
                :use-module (ice-9 vlist)
                :use-module (srfi srfi-1)
                :use-module (gnu make)
-               :re-export (checks)
+               ;:re-export (checks)
                :re-export (find-file-by-prefix)
                :re-export (find-file-by-path-suffix)
                :re-export (find-file-by-exact-name)
@@ -28,21 +28,31 @@
 (define ~search-path vlist-null)
 (define-public (dump-search-path) (vhash-fold-right (lambda (k v r) (cons (list k v) r)) '() ~search-path))
 
+(define (safe_polymorphic_path p)
+  (cond ((false-if-exception (list? p)) p)
+        ((false-if-exception (string? p)) (list p))
+        (#t (list (symbol->string (quote p))))))
+
+(define (append-list listlist)
+  (if (null? listlist) '() (append (car listlist) (append-list (cdr listlist)))))
+
 (define (~add-search-path tag . path)
-  (let ((exists? (vhash-assoc tag ~search-path)))
+  (let ((flat (append-list path))
+        (exists? (vhash-assoc tag ~search-path)))
     (set! ~search-path
       (if exists?
         (vhash-fold-right (lambda (k v r)
                             (if (equal? k tag)
-                              (vhash-cons k (append v path) r))) vlist-null ~search-path)
-        (vhash-cons tag path ~search-path)))))
+                              (vhash-cons k (append v flat) r))) vlist-null ~search-path)
+        (vhash-cons tag flat ~search-path)))
+    ))
 
 (define-syntax add-search-path
   (syntax-rules ()
     ((_ key path ...)
      (~add-search-path
        (if (string? (quote key)) (string->symbol (quote key)) (quote key))
-       (if (symbol? (quote path)) (symbol->string (quote path)) (quote path)) ...))))
+       (safe_polymorphic_path path) ...))))
 
 
 (define (get-search-path tag)
@@ -64,18 +74,22 @@
 (define-syntax verifies
   (syntax-rules ()
     ;((verifies (pred-name . args) ...) (checks (list (quote pred-name) . args) ...))))
-    ((verifies (pred-name . args) ...) (lambda (f) (and (pred-name f . args) ...)))))
+    ((verifies (pred-name . args) ...) (begin
+                                         ;(pk '(lambda (f) (and (pred-name f . args) ...)))
+                                         ;(newline)
+                                         (lambda (f) (and (pred-name f . args) ...))
+                                         ))))
 
 (define-syntax format-find-candidates
   (syntax-rules ()
     ((format-find-candidates search-path find-mode-tag find-target predicates)
-     (pk (find-candidates search-path (quote find-mode-tag) (symbol->string (quote find-target)) predicates)))))
+     (find-candidates search-path (quote find-mode-tag) (symbol->string (quote find-target)) predicates))))
 
 (define-syntax format-find-multiple-candidates-impl
   (syntax-rules ()
-    ((_ sp fmt ft p) (pk (format-find-candidates sp fmt ft p)))
+    ((_ sp fmt ft p) (format-find-candidates sp fmt ft p))
     ((_ sp fmt ft p . rest)
-     (pk (append (format-find-candidates sp fmt ft p) (format-find-multiple-candidates-impl sp . rest))))))
+     (append (format-find-candidates sp fmt ft p) (format-find-multiple-candidates-impl sp . rest)))))
 
 (define-syntax format-find-multiple-candidates
   (syntax-rules ()
@@ -85,7 +99,10 @@
   (set! configurables
         (append configurables
                 (list (list make-var-name
-                            (lambda () (pick-unique name (candidates))))))))
+                            (lambda ()
+                              (let ((value (pick-unique name (candidates))))
+                                (print "[CONF] Variable " make-var-name " set to \"" value "\"\n")
+                                (pick-unique name (candidates)))))))))
 
 (define-syntax declare
   (syntax-rules ()
@@ -102,21 +119,22 @@
     (map (lambda (p) (concat (car p) "=" ((cadr p)) "\n"))
          configurables)))
 
-
-(define (write-configuration filename)
+(define-public (write-configuration filename)
   (let ((f (open-output-file filename)))
-    (write f (eval-configurables))
-    (close f)))
+	(display "Configuring the build...\n")
+    (display (eval-configurables) f)
+    (close f)
+    (concat "Configuration written in " filename)))
 
 (define (gmk-var var-name)
   (gmk-expand (concat "$(" var-name ")")))
 
 (define (configure-include)
   (gmk-eval "
-.configuration:
-\t$(guile (write-configuration \".configuration\"))
+.build-configuration: $(MAKEFILE_LIST)
+	@echo $(guile (write-configuration \".build-configuration\"))
 
-include .configuration
+-include .build-configuration
 "))
 
 (define (configure-frontend)
@@ -126,7 +144,7 @@ include .configuration
     ;(print "project-path " project-path "\n")
     (gmk-eval (concat "
 .configure:
-\t@$(guile (write-frontend \"Makefile\" \"" project-path "\" '(" makefiles ")))
+	@$(guile (write-frontend \"Makefile\" \"" project-path "\" '(" makefiles ")))
 
 "))))
 

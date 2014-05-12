@@ -2,8 +2,6 @@
                :use-module (ice-9 match)
                :use-module (nabs tools)
                :use-module (nabs invoke)
-               :export (compiler-version>=?
-                        )
                )
 
 ;(define (expand-checks ARGS)
@@ -37,7 +35,7 @@
     (rec-supeq v1 v2)))
 
 
-(define (compiler-version>=? program-name version)
+(define-public (compiler-version>=? program-name version)
   (let* ((command (concat program-name " -dumpversion"))
          ;(dump-cmd (print "command: " command "\n"))
          (output (command-output command ""))
