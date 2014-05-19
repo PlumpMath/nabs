@@ -1,17 +1,13 @@
 (define-module (nabs tools)
                :use-module (ice-9 readline)
-               :export (print
-                        concat
-                        pick-unique
-                        in-list?
-                         ))
+               )
 
 
-(define (print . args) (for-each display args))
-(define (concat . args) (string-concatenate args))
+(define-public (print . args) (for-each display args))
+(define-public (concat . args) (string-concatenate args))
 
 
-(define (print-alternatives index alternatives)
+(define-public (print-alternatives index alternatives)
   (cond ((not (null? alternatives))
          (begin (print "[" index "] " (car alternatives) "\n")
                 (print-alternatives (+ 1 index) (cdr alternatives))))
@@ -28,11 +24,14 @@
       (user-choice what alternatives)
       (pick value alternatives))))
 
-(define (pick-unique what alternatives)
+(define-public (pick-unique what alternatives)
   (cond ((null? alternatives)
          (readline (concat "Couldn't find a suitable version of " what ".\n Please input the path to use: ")))
         ((null? (cdr alternatives)) (car alternatives))
         (#t (user-choice what alternatives))))
 
-(define (in-list? needle haystack) (cond ((null? haystack) #f) ((equal? needle (car haystack)) #t) (#t (in-list? needle (cdr haystack)))))
+(define-public (in-list? needle haystack) (cond ((null? haystack) #f) ((equal? needle (car haystack)) #t) (#t (in-list? needle (cdr haystack)))))
+
+(define-public (append-list listlist)
+  (if (null? listlist) '() (append (car listlist) (append-list (cdr listlist)))))
 

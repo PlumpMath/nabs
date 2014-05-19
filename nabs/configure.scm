@@ -10,13 +10,12 @@
                :re-export (find-file-by-prefix)
                :re-export (find-file-by-path-suffix)
                :re-export (find-file-by-exact-name)
-               :export (declare
-                        verifies
-                        add-search-path
-                        ~add-search-path
+               ;:export-syntax (add-search-path declare verifies)
+               :export (~add-search-path
                         configure-include
                         configure-frontend
                         write-frontend
+                        add-search-path declare verifies
                         ))
 
 ; export predicates
@@ -28,31 +27,47 @@
 (define ~search-path vlist-null)
 (define-public (dump-search-path) (vhash-fold-right (lambda (k v r) (cons (list k v) r)) '() ~search-path))
 
-(define (safe_polymorphic_path p)
-  (cond ((false-if-exception (list? p)) p)
-        ((false-if-exception (string? p)) (list p))
-        (#t (list (symbol->string (quote p))))))
-
-(define (append-list listlist)
-  (if (null? listlist) '() (append (car listlist) (append-list (cdr listlist)))))
-
 (define (~add-search-path tag . path)
-  (let ((flat (append-list path))
+  (let (;(flat (append-list path))
         (exists? (vhash-assoc tag ~search-path)))
+    ;(print "path " path " exists? " exists? "\n")
     (set! ~search-path
       (if exists?
         (vhash-fold-right (lambda (k v r)
                             (if (equal? k tag)
-                              (vhash-cons k (append v flat) r))) vlist-null ~search-path)
-        (vhash-cons tag flat ~search-path)))
+                              (vhash-cons k (append v path) r))) vlist-null ~search-path)
+        (vhash-cons tag path ~search-path)))
     ))
 
+;(define-syntax safe_polymorphic_path
+;  (lambda (x)
+;    (syntax-case x ()
+;                 [(_ p) (list? (syntax->datum p)) (syntax p)]
+;                 [(_ p) (string? (syntax->datum p)) (syntax (list p))]
+;                 [(_ p) (symbol? (syntax->datum p)) (syntax (symbol->string p))])))
+
+;(define (safe_polymorphic_path x)
+;  (let ((sym (symbol? x))
+;        (evaluable (false-if-exception ((lambda (k) k) x)))
+;        )
+;    (print "evaluable? " x "\n")
+;    (cond (sym (symbol->string x))
+;          ((list? x) x)
+;          ((string? x) (list x))
+;          (#t '()))))
+
 (define-syntax add-search-path
+;  (define transform-path
+;    (lambda (x)
+;      (syntax-case x ()
+;                   [(_ p) (list? #'p) #'p]
+;                   [(_ p) (string? #'p) #'(list p)]
+;                   [(_ p) #'(symbol->string p)])))
   (syntax-rules ()
     ((_ key path ...)
      (~add-search-path
-       (if (string? (quote key)) (string->symbol (quote key)) (quote key))
-       (safe_polymorphic_path path) ...))))
+         (if (string? (quote key)) (string->symbol (quote key)) (quote key))
+         (symbol->string (quote path)) ...))))
 
 
 (define (get-search-path tag)
@@ -131,10 +146,14 @@
 
 (define (configure-include)
   (gmk-eval "
+NABS_MODE_EMBED:=1
 .build-configuration: $(MAKEFILE_LIST)
 	@echo $(guile (write-configuration \".build-configuration\"))
 
 -include .build-configuration
+
+reconfigure:
+	rm .build-configuration && $(MAKE)
 "))
 
 (define (configure-frontend)
@@ -143,7 +162,8 @@
     ;(print "makefiles " makefiles "\n")
     ;(print "project-path " project-path "\n")
     (gmk-eval (concat "
-.configure:
+NABS_MODE_FRONTEND:=1
+configure:
 	@$(guile (write-frontend \"Makefile\" \"" project-path "\" '(" makefiles ")))
 
 "))))
@@ -158,4 +178,16 @@
           (close f)))
 ;    "true"
 ;    "false"))
+
+
+(gmk-eval "
+NABS_MODE_EMBED:=0
+NABS_MODE_FRONTEND:=0
+nabs-help:
+	@echo This Makefile is powered by nabs. Nabs: not a build system.
+	@export PFX='$$'
+	@test $(NABS_MODE_EMBED) -ne 0 -o $(NABS_MODE_FRONTEND) -ne 0 || (echo \" * This Makefile does not yet define a build mode.\\n   You should invoke either ${PFX}(guile (configure-frontend)) or ${PFX}(guile (configure-include)) in the Makefile.\" && false)
+	@test $(NABS_MODE_EMBED) -eq 1 && echo \" * The build has automatic configuration. You don't need to do anything manually.\\n   You can reconfigure the build by invoking '$(MAKE) reconfigure'.\" || true
+	@test $(NABS_MODE_FRONTEND) -eq 1 && echo \" * Out-of-source build capability.\\n   Invoke '$(MAKE) -f <relative-path-to-this-makefile> configure' in another directory to set up the build there.\" || true
+")
 
