@@ -44,3 +44,12 @@
     (if (null? output)
       #f
       (version>=? (car output) version))))
+
+(define-public (compiles? program-name options static-body main-body)
+  (let* ((command (concat program-name " " options " -o .test.compilation -"))
+         (input (concat static-body "\n\nint main(int argc, char** argv)\n{\n"
+                        main-body ";\n    return 0;\n}\n"))
+         (ret (command-success? command input)))
+    (if ret (delete-file ".test.compilation"))
+    ret))
+
