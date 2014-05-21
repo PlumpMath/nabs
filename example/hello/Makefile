@@ -4,10 +4,9 @@ define nabs :=
 (add-search-path bin /usr/bin /usr/local/bin)
 (declare bin
 		  "C++ compiler" CXX
-		  prefix g++ (verifies (compiler-version>=? "4.9"))
-		  prefix clang++ (verifies (compiler-version>=? "3.4"))
+		  prefix g++ (verifies (compiler-version>=? "4.9") (compiles? "-x c++" "" ""))
+		  prefix clang++ (verifies (compiler-version>=? "3.4") (compiles? "-x c++" "" ""))
 )
-(display "search-path: ") (display (dump-search-path)) (newline)
 (configure-frontend)
 endef
 
