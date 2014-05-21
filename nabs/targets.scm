@@ -49,7 +49,7 @@
          (makefiles (gmk-expand "$(MAKEFILE_LIST)"))
          (rules (if (not (equal? dont-run ""))
                   '((() ()))
-                  (find-all-rules-in (command-output (gmk-expand "$(MAKE) -p -n -s $(MAKEFILE_LIST) NABS_HELP_DONT_RECURSE='#t'") ""))))
+                  (find-all-rules-in (command-output (gmk-expand "$(MAKE) -q -p -n -s $(MAKEFILE_LIST) NABS_HELP_DONT_RECURSE='#t'") ""))))
          (ttab (make-targets-table rules))
          (ptab (make-prereqs-table rules)))
     (filter (lambda (x) (not (string-contains makefiles x)))

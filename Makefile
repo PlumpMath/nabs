@@ -7,8 +7,6 @@ define nabs_script :=
 (declare inst "Installation directory" INST_DIR
          path-suffix /site (verifies (file-exists?)))
 (configure-include)
-
-*unspecified*
 endef
 
 $(guile $(nabs_script))

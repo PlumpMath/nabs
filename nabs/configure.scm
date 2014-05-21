@@ -7,16 +7,19 @@
                :use-module (ice-9 vlist)
                :use-module (srfi srfi-1)
                :use-module (gnu make)
+               ;:use-module (ice-9 session)
                ;:re-export (checks)
                :re-export (find-file-by-prefix)
                :re-export (find-file-by-path-suffix)
                :re-export (find-file-by-exact-name)
+               ;:re-export (help)
                ;:export-syntax (add-search-path declare verifies)
                :export (~add-search-path
                         configure-include
                         configure-frontend
                         write-frontend
                         add-search-path declare verifies
+                        nabs-help
                         ))
 
 ; export predicates
@@ -85,7 +88,7 @@
                 (list (list make-var-name
                             (lambda ()
                               (let ((value (pick-unique name (candidates))))
-                                (print "[CONF] Variable " make-var-name " set to \"" value "\"\n")
+                                (print "[nabs] * Variable " make-var-name " set to \"" value "\"\n")
                                 (pick-unique name (candidates)))))))))
 
 (define-syntax declare
@@ -105,10 +108,10 @@
 
 (define-public (write-configuration filename)
   (let ((f (open-output-file filename)))
-	(display "Configuring the build...\n")
+	(display "[nabs] Configuring the build...\n")
     (display (eval-configurables) f)
     (close f)
-    (concat "Configuration written in " filename)))
+    (concat "[nabs] Configuration written in " filename)))
 
 (define (gmk-var var-name)
   (gmk-expand (concat "$(" var-name ")")))
@@ -122,7 +125,7 @@ NABS_MODE_EMBED:=1
 -include .build-configuration
 
 reconfigure:
-	rm .build-configuration && $(MAKE)
+	@rm .build-configuration && $(MAKE) -s .build-configuration
 "))
 
 (define (configure-frontend)
@@ -149,15 +152,112 @@ configure:
 ;    "false"))
 
 
+(define (debug str)
+  (display str)
+  (newline)
+  str)
+
 (gmk-eval "
+
 NABS_MODE_EMBED:=0
 NABS_MODE_FRONTEND:=0
-nabs-help:
-	@echo This Makefile is powered by nabs. Nabs: not a build system.
-	@export PFX='$$'
-	@test $(NABS_MODE_EMBED) -ne 0 -o $(NABS_MODE_FRONTEND) -ne 0 || (echo \" * This Makefile does not yet define a build mode.\\n   You should invoke either ${PFX}(guile (configure-frontend)) or ${PFX}(guile (configure-include)) in the Makefile.\" && false)
-	@test $(NABS_MODE_EMBED) -eq 1 && echo \" * The build has automatic configuration. You don't need to do anything manually.\\n   You can reconfigure the build by invoking '$(MAKE) reconfigure'.\" || true
-	@test $(NABS_MODE_FRONTEND) -eq 1 && echo \" * Out-of-source build capability.\\n   Invoke '$(MAKE) -f <relative-path-to-this-makefile> configure' in another directory to set up the build there.\" || true
-	@echo \" * Top-level targets: $(guile (top-level-targets))\"
+about:
+	@(echo This Makefile is powered by nabs. Nabs: not a build system. ;\
+    echo;\
+	test $(NABS_MODE_EMBED) -eq 1 && echo \"The build has automatic configuration. You don't need to do anything manually.\\n   You can reconfigure the build by invoking '$(MAKE) reconfigure'.\" || (\
+	test $(NABS_MODE_FRONTEND) -eq 1 && echo \" * Out-of-source build capability.\\n   Invoke '$(MAKE) -f <relative-path-to-this-makefile> configure' in another directory to set up the build there.\" || (\
+	echo \" * This Makefile does not yet define a build mode. You should use one of those commands in your Makefile :\" ;\
+	echo \"   (configure-include) to enable automatic configuration\" ;\
+	echo \"   (configure-frontend) to enable out-of-source build\" ;\
+	));\
+    echo;\
+	echo \"Top-level targets: $(guile (top-level-targets))\" ;\
+    echo;\
+	echo \"You may use $(MAKE) help-TOPIC to get help on this topic.\" ;\
+	)
+
+help: help-nabs
+
+
+help-%::;@#$(guile (begin (display \"### Nabs help ###\") (newline) (newline) (display (nabs-help (quote $@)))))
+
+
 ")
 
+(define (nabs-help x)
+  (case x
+    ('help-nabs
+     "NABS: Not a build system.
+
+  Nabs is a guile module to help create configurable Makefiles, with optional out-of-source build, while still retaining full control over the power of GNU Make.
+  Help is available for the following topics:
+  - nabs
+  - add-search-path
+  - declare
+  - configure-include
+  - configure-frontend
+  - predicates
+")
+
+    ('help-add-search-path
+     "(add-search-path key path...)
+
+  Add [path...] to the list of directories that will be searched for targets of type [key].
+  Example:
+    (add-search-path bin /usr/bin /usr/local/bin /home/memyselfandi/bin)
+")
+
+    ('help-declare
+     "(declare key \"Descriptive name\" MAKE_VAR_NAME
+         search-mode what (verifies ...) ...)
+
+  Declares a Make variable to be configured.
+  Nabs will search for [what] in the search path corresponding to [key].
+  [search-mode] can be one of:
+    - prefix        a candidate is selected if the base name starts with [what]
+                    (for example, 'prefix gcc' will match gcc-4.9)
+    - path-suffix   a candidate is selected if the full path ends with [what]
+                    (for example 'path-suffix foo/bar' will match /search/path/foo/bar)
+    - exact-name    a candidate is selected if the base name is exactly [what].
+  The list of found files is filtered with the list of predicates defined in (verifies ...) (see help-predicates).
+  If there is more than one viable candidate, the user is asked to choose one.
+  If there is no viable candidate, the user is asked to input one.
+")
+
+    ('help-configure-include
+     "(configure-include)
+
+  Enables the auto-configuration of the Makefile.
+  To this effect, a file named .build-configuration is included and the rule to create it is added to the Make data base.
+  Upon creation of this file, all declared Make variables (see help-declare) are configured and saved in the configuration file.
+  Reconfiguration can be performed by invoking make reconfigure.
+")
+
+    ('help-configure-frontend
+     (gmk-expand "(configure-frontend)
+
+  Enables out-of-source builds.
+  To configure an out-of-source build, move to another directory (preferably empty and dedicated to the build), and invoke:
+  $(MAKE) -f relative/path/to/Makefile configure
+  A Makefile will be created in this directory, including all the configured Make variables.
+  Just invoke $(MAKE) again in this directory to perform the build.
+
+  Example:
+  $$ mkdir build
+  $$ cd build
+  $$ make -f ../Makefile configure
+  $$ make
+"))
+
+    ('help-predicates
+     "(verifies ...)
+
+  Specified a chain of predicates for use in declare (see help-declare).
+  The existing predicates are:
+  - (compiler-version>=? \"VERSION.STRING\")
+    example: (compiler-version>=? \"4.4\")
+")
+    (else (concat (nabs-help 'help-nabs) "\n\nNo topic found for " (symbol->string x)))
+))
+
+;(add-name-help-handler! nabs-help)
