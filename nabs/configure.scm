@@ -2,6 +2,7 @@
                :use-module (nabs tools)
                :use-module (nabs find)
                :use-module (nabs predicates)
+               :use-module (nabs targets)
                ;:use-module (ice-9 match)
                :use-module (ice-9 vlist)
                :use-module (srfi srfi-1)
@@ -39,30 +40,7 @@
         (vhash-cons tag path ~search-path)))
     ))
 
-;(define-syntax safe_polymorphic_path
-;  (lambda (x)
-;    (syntax-case x ()
-;                 [(_ p) (list? (syntax->datum p)) (syntax p)]
-;                 [(_ p) (string? (syntax->datum p)) (syntax (list p))]
-;                 [(_ p) (symbol? (syntax->datum p)) (syntax (symbol->string p))])))
-
-;(define (safe_polymorphic_path x)
-;  (let ((sym (symbol? x))
-;        (evaluable (false-if-exception ((lambda (k) k) x)))
-;        )
-;    (print "evaluable? " x "\n")
-;    (cond (sym (symbol->string x))
-;          ((list? x) x)
-;          ((string? x) (list x))
-;          (#t '()))))
-
 (define-syntax add-search-path
-;  (define transform-path
-;    (lambda (x)
-;      (syntax-case x ()
-;                   [(_ p) (list? #'p) #'p]
-;                   [(_ p) (string? #'p) #'(list p)]
-;                   [(_ p) #'(symbol->string p)])))
   (syntax-rules ()
     ((_ key path ...)
      (~add-search-path
@@ -77,21 +55,12 @@
       (begin (print (dump-search-path) "\n")
       (error (concat "Search path for '" (symbol->string tag) " was not defined!"))))))
 
-;(define (find-candidates search-path find-mode-tag find-target predicates . other)
-;  (let ((candidates (filter predicates (find-file search-path find-mode-tag find-target))))
-;    (if (null? other)
-;      candidates
-;      (append candidates (find-candidates search-path . other)))))
-
 (define (find-candidates search-path find-mode-tag find-target predicates . other)
   (filter predicates (find-file search-path find-mode-tag find-target)))
 
 (define-syntax verifies
   (syntax-rules ()
-    ;((verifies (pred-name . args) ...) (checks (list (quote pred-name) . args) ...))))
     ((verifies (pred-name . args) ...) (begin
-                                         ;(pk '(lambda (f) (and (pred-name f . args) ...)))
-                                         ;(newline)
                                          (lambda (f) (and (pred-name f . args) ...))
                                          ))))
 
@@ -189,5 +158,6 @@ nabs-help:
 	@test $(NABS_MODE_EMBED) -ne 0 -o $(NABS_MODE_FRONTEND) -ne 0 || (echo \" * This Makefile does not yet define a build mode.\\n   You should invoke either ${PFX}(guile (configure-frontend)) or ${PFX}(guile (configure-include)) in the Makefile.\" && false)
 	@test $(NABS_MODE_EMBED) -eq 1 && echo \" * The build has automatic configuration. You don't need to do anything manually.\\n   You can reconfigure the build by invoking '$(MAKE) reconfigure'.\" || true
 	@test $(NABS_MODE_FRONTEND) -eq 1 && echo \" * Out-of-source build capability.\\n   Invoke '$(MAKE) -f <relative-path-to-this-makefile> configure' in another directory to set up the build there.\" || true
+	@echo \" * Top-level targets: $(guile (top-level-targets))\"
 ")
 

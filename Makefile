@@ -2,7 +2,7 @@ GUILE_LOAD_PATH:=$(guile %load-path)
 
 define nabs_script :=
 (add-to-load-path ".")
-(use-modules (nabs configure) (nabs predicates) (gnu make))
+(use-modules (nabs configure) (nabs predicates) (gnu make) (nabs targets))
 (add-search-path inst $(GUILE_LOAD_PATH))
 (declare inst "Installation directory" INST_DIR
          path-suffix /site (verifies (file-exists?)))
