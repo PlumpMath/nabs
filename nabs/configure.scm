@@ -12,6 +12,7 @@
                :re-export (find-file-by-prefix)
                :re-export (find-file-by-path-suffix)
                :re-export (find-file-by-exact-name)
+               :use-module (nabs log)
                ;:re-export (help)
                ;:export-syntax (add-search-path declare verifies)
                :export (~add-search-path
@@ -88,7 +89,7 @@
                 (list (list make-var-name
                             (lambda ()
                               (let ((value (pick-unique name (candidates))))
-                                (print "[nabs] * Variable " make-var-name " set to \"" value "\"\n")
+                                (print (log-write (concat "[nabs] ### Variable " make-var-name " set to \"" value "\"")) "\n")
                                 value)))))))
 
 (define-syntax declare
@@ -102,11 +103,14 @@
 
 (define (eval-configurables)
   "Turn the list of configurables into a string that can be directly fed to Make."
-  (string-concatenate
-    (map (lambda (p)
-           (display (concat "[nabs] ### Configuring " (car p) "\n"))
-           (concat (car p) "=" ((cadr p)) "\n"))
-         configurables)))
+  (let* ((start-logging (open-log))
+         (ret (string-concatenate
+               (map (lambda (p)
+                      (let ((header (print (log-write (concat "[nabs] ### Configuring " (car p))) "\n")))
+                        (concat (car p) "=" ((cadr p)) "\n")))
+                    configurables)))
+         (stop-logging (close-log)))
+    ret))
 
 (define-public (write-configuration filename)
   (let ((f (open-output-file filename)))
@@ -135,17 +139,17 @@ reconfigure:
          (project-path (string-join (map dirname (string-split makefiles #\ )) ":" 'infix)))
     ;(print "makefiles " makefiles "\n")
     ;(print "project-path " project-path "\n")
-    (gmk-eval (pk (concat "
+    (gmk-eval (concat "
 NABS_MODE_FRONTEND:=1
 configure:
 	@$(guile (write-frontend \"Makefile\" \"" project-path "\" '(" makefiles ")))
 
-")))))
+"))))
 
 (define (write-frontend filename vpath makefiles)
 ;  (if (false-if-exception
         (let ((f (open-output-file filename)))
-          (display (pk (eval-configurables)) f)
+          (display (eval-configurables) f)
           ;(print "vpath " vpath " vpath " vpath "\n")
           (display (concat "vpath % " vpath "\n") f)
           (display (string-join (map (lambda (m) (concat "include " (symbol->string m))) makefiles) "\n" 'infix) f)

@@ -4,6 +4,7 @@
                :use-module (ice-9 rdelim)
                :use-module (ice-9 regex)
                :use-module (rnrs io ports)
+               :use-module (nabs log)
                :export (match-one-line?
                         match-one-line-by-re?
                         match-one-line-by-substring?
@@ -66,6 +67,16 @@
          (close-error (close-port error-port))
          (clean-up1 (delete-file input-filename))
          (clean-up2 (delete-file error-filename)))
+    (log-write (concat "[nabs] Invoking command " command))
+    (log-write "----------input-----------")
+    (log-write input)
+    (log-write "----------status----------")
+    (log-write status)
+    (log-write "----------output----------")
+    (log-write (string-join lines "\n" 'infix))
+    (log-write "----------error-----------")
+    (log-write error-buf)
+    (log-write "--------------------------")
     (list lines status error-buf)))
 
 (define (command-output command input) (car (command-output-and-status command input)))
