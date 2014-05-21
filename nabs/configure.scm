@@ -89,7 +89,7 @@
                             (lambda ()
                               (let ((value (pick-unique name (candidates))))
                                 (print "[nabs] * Variable " make-var-name " set to \"" value "\"\n")
-                                (pick-unique name (candidates)))))))))
+                                value)))))))
 
 (define-syntax declare
   (syntax-rules ()
@@ -103,7 +103,9 @@
 (define (eval-configurables)
   "Turn the list of configurables into a string that can be directly fed to Make."
   (string-concatenate
-    (map (lambda (p) (concat (car p) "=" ((cadr p)) "\n"))
+    (map (lambda (p)
+           (display (concat "[nabs] ### Configuring " (car p) "\n"))
+           (concat (car p) "=" ((cadr p)) "\n"))
          configurables)))
 
 (define-public (write-configuration filename)
@@ -133,17 +135,17 @@ reconfigure:
          (project-path (string-join (map dirname (string-split makefiles #\ )) ":" 'infix)))
     ;(print "makefiles " makefiles "\n")
     ;(print "project-path " project-path "\n")
-    (gmk-eval (concat "
+    (gmk-eval (pk (concat "
 NABS_MODE_FRONTEND:=1
 configure:
 	@$(guile (write-frontend \"Makefile\" \"" project-path "\" '(" makefiles ")))
 
-"))))
+")))))
 
 (define (write-frontend filename vpath makefiles)
 ;  (if (false-if-exception
         (let ((f (open-output-file filename)))
-          (display (eval-configurables) f)
+          (display (pk (eval-configurables)) f)
           ;(print "vpath " vpath " vpath " vpath "\n")
           (display (concat "vpath % " vpath "\n") f)
           (display (string-join (map (lambda (m) (concat "include " (symbol->string m))) makefiles) "\n" 'infix) f)
@@ -225,13 +227,13 @@ help-%::;@#$(guile (begin (display \"### Nabs help ###\") (newline) (newline) (d
 ")
 
     ('help-configure-include
-     "(configure-include)
+     (gmk-expand "(configure-include)
 
   Enables the auto-configuration of the Makefile.
   To this effect, a file named .build-configuration is included and the rule to create it is added to the Make data base.
   Upon creation of this file, all declared Make variables (see help-declare) are configured and saved in the configuration file.
-  Reconfiguration can be performed by invoking make reconfigure.
-")
+  Reconfiguration can be performed by invoking $(MAKE) reconfigure.
+"))
 
     ('help-configure-frontend
      (gmk-expand "(configure-frontend)
@@ -252,10 +254,25 @@ help-%::;@#$(guile (begin (display \"### Nabs help ###\") (newline) (newline) (d
     ('help-predicates
      "(verifies ...)
 
-  Specified a chain of predicates for use in declare (see help-declare).
+  Specifies a chain of predicates for use in declare (see help-declare).
   The existing predicates are:
+
   - (compiler-version>=? \"VERSION.STRING\")
+    Invokes the candidate with the option -dumpversion and checks the output against the given argument. The version is expected to be in the form MAJOR.MINOR[.PATCH].
     example: (compiler-version>=? \"4.4\")
+
+  - (compiles? options \"STATIC_BODY\" \"MAIN_BODY\")
+    Tests whether the candidate can successfully compile the input. The input to the compiler is as follows:
+---start input file---
+STATIC_BODY
+
+int main(int argc, char** argv)
+{
+    MAIN_BODY;
+    return 0;
+}
+---end input file---
+    example: (compiles? \"-ldl -x c\" \"#include <dlfcn>\" \"void* test = dlsym(\"toto\");\")
 ")
     (else (concat (nabs-help 'help-nabs) "\n\nNo topic found for " (symbol->string x)))
 ))
